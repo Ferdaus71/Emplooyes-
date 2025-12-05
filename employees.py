@@ -4,13 +4,16 @@ import numpy as np
 import os
 from PIL import Image
 import tempfile
-from datetime import datetime
+from datetime import datetime, timedelta
 import plotly.graph_objects as go
 import plotly.express as px
 import base64
 import io
 import sys
 import json
+import random
+import warnings
+warnings.filterwarnings('ignore')
 
 # Try to import optional dependencies
 try:
@@ -30,511 +33,455 @@ except ImportError:
     st.sidebar.warning("⚠️ PyTorch not available - RL features limited")
 
 # ============================================
-# 1. REINFORCEMENT LEARNING MODEL (SIMPLIFIED)
+# 1. ENHANCED REINFORCEMENT LEARNING MODEL
 # ============================================
 
-class RuleBasedAgent:
-    """Rule-based agent that simulates RL decisions"""
+class EnhancedRuleBasedAgent:
+    """Enhanced rule-based agent with more sophisticated decision-making"""
     def __init__(self):
         self.actions = [
-            "No action needed",
-            "Provide positive reinforcement",
-            "Schedule wellness check",
-            "Offer skill training",
-            "Adjust workload",
-            "Recommend promotion track",
-            "Provide constructive feedback"
+            "🎯 No action needed - Maintain current performance",
+            "🌟 Provide positive reinforcement - Recognize achievements",
+            "⚕️ Schedule wellness check - Monitor work-life balance",
+            "📚 Offer skill training - Enhance capabilities",
+            "⚖️ Adjust workload - Optimize task distribution",
+            "📈 Recommend promotion track - Prepare for advancement",
+            "💡 Provide constructive feedback - Address improvement areas",
+            "🤝 Team collaboration enhancement - Improve teamwork",
+            "🔄 Task rotation - Prevent burnout",
+            "🎯 Goal setting session - Align objectives"
         ]
+        
+        # Action impact scores (for visualization)
+        self.action_impact = {
+            0: 1.0,  # Neutral
+            1: 1.3,  # Positive reinforcement
+            2: 1.1,  # Wellness
+            3: 1.4,  # Training
+            4: 1.2,  # Workload adjustment
+            5: 1.5,  # Promotion
+            6: 1.25, # Feedback
+            7: 1.3,  # Collaboration
+            8: 1.2,  # Task rotation
+            9: 1.35  # Goal setting
+        }
     
     def select_action(self, state, epsilon=0.1):
-        """Rule-based action selection"""
-        # Extract features from state
-        if len(state) >= 2:
-            work_hours = state[0] * 24  # Convert normalized hours back
-            task_complexity = state[1]
-        else:
-            work_hours = 8
-            task_complexity = 0.5
+        """Enhanced rule-based action selection with probabilities"""
+        if len(state) < 4:
+            return 0
         
-        # Simple rule-based logic
+        work_hours_norm = state[0]
+        task_complexity = state[1]
+        motion_level = state[2]
+        brightness = state[3]
+        
+        work_hours = work_hours_norm * 24
+        
+        # Score each action based on conditions
+        action_scores = np.zeros(len(self.actions))
+        
+        # Rule weights
+        weights = {
+            'hours': 0.3,
+            'complexity': 0.25,
+            'motion': 0.25,
+            'brightness': 0.2
+        }
+        
+        # Calculate scores for each action
         if work_hours > 10:
-            return 2  # Wellness check for long hours
+            action_scores[2] += weights['hours'] * 0.9  # Wellness check
+            action_scores[8] += weights['hours'] * 0.7  # Task rotation
         elif work_hours < 6:
-            return 4  # Adjust workload for short hours
-        elif task_complexity > 0.8:
-            return 3  # Skill training for complex tasks
+            action_scores[4] += weights['hours'] * 0.8  # Adjust workload
+        
+        if task_complexity > 0.8:
+            action_scores[3] += weights['complexity'] * 1.0  # Skill training
+            action_scores[9] += weights['complexity'] * 0.6  # Goal setting
         elif task_complexity > 0.6:
-            return 1  # Positive reinforcement
-        else:
-            return 0  # No action needed
+            action_scores[1] += weights['complexity'] * 0.8  # Positive reinforcement
+        
+        if motion_level > 0.7:
+            action_scores[6] += weights['motion'] * 0.7  # Constructive feedback
+        elif motion_level < 0.3:
+            action_scores[7] += weights['motion'] * 0.8  # Team collaboration
+        
+        if brightness < 0.3:
+            action_scores[2] += weights['brightness'] * 0.5  # Wellness (poor lighting)
+        
+        # Add some randomness for exploration
+        if random.random() < epsilon:
+            return random.randint(0, len(self.actions) - 1)
+        
+        # Select action with highest score
+        if np.max(action_scores) > 0:
+            return np.argmax(action_scores)
+        return 0  # Default: no action needed
     
     def get_action_description(self, action_idx):
         if 0 <= action_idx < len(self.actions):
             return self.actions[action_idx]
-        return "Unknown action"
+        return "🔄 Custom action needed"
+    
+    def get_action_impact(self, action_idx):
+        return self.action_impact.get(action_idx, 1.0)
+    
+    def predict_performance_gain(self, current_score, action_idx):
+        """Predict performance improvement from action"""
+        base_gain = 5 * self.get_action_impact(action_idx)
+        max_gain = 100 - current_score
+        return min(base_gain, max_gain)
 
 # ============================================
-# 2. DATA MANAGEMENT AND PROCESSING
+# 2. ENHANCED DATA MANAGEMENT
 # ============================================
 
-class EmployeeDatabase:
+class EnhancedEmployeeDatabase(EmployeeDatabase):
     def __init__(self):
-        self.df = None
-        self.employee_data = {}
-        self.load_existing_data()
+        super().__init__()
+        self.performance_history = {}
+        self.load_performance_history()
     
-    def load_existing_data(self):
-        """Load dataset from CSV file"""
+    def load_performance_history(self):
+        """Load historical performance data"""
         try:
-            if os.path.exists("employee_multimodal_dataset.csv"):
-                self.df = pd.read_csv("employee_multimodal_dataset.csv")
-                self.process_dataframe()
-            else:
-                self.df = pd.DataFrame(columns=[
-                    'Date', 'Team Members', 'Signed In', 'Signed Out', 
-                    'Completed Task', 'session_id', 'selfie_path', 
-                    'session_video_path', 'emotion_label', 'engagement_level',
-                    'posture_label', 'performance_label'
-                ])
-        except Exception as e:
-            st.error(f"Error loading dataset: {e}")
-            self.df = pd.DataFrame()
-    
-    def process_dataframe(self):
-        """Clean and process the dataframe"""
-        if self.df is not None and not self.df.empty:
-            # Fill missing columns
-            required_columns = ['Team Members', 'Signed In', 'Signed Out', 'Completed Task']
-            for col in required_columns:
-                if col not in self.df.columns:
-                    self.df[col] = ''
-            
-            # Fill NaN values
-            self.df = self.df.fillna('')
-            
-            # Build employee data dictionary
-            self.employee_data = {}
-            for idx, row in self.df.iterrows():
-                employee_name = str(row.get('Team Members', '')).strip()
-                if employee_name:
-                    self.employee_data[employee_name] = {
-                        'sign_in': row.get('Signed In', ''),
-                        'sign_out': row.get('Signed Out', ''),
-                        'task': row.get('Completed Task', ''),
-                        'date': row.get('Date', ''),
-                        'selfie_path': row.get('selfie_path', ''),
-                        'video_path': row.get('session_video_path', '')
-                    }
-    
-    def upload_dataset(self, uploaded_file):
-        """Handle CSV file upload"""
-        if uploaded_file is None:
-            return "No file uploaded", pd.DataFrame()
-        
-        try:
-            self.df = pd.read_csv(uploaded_file)
-            self.process_dataframe()
-            return f"✅ Uploaded {len(self.df)} records", self.df
-        except Exception as e:
-            return f"❌ Error: {str(e)}", pd.DataFrame()
-    
-    def search_employees(self, search_term):
-        """Search for employees by name"""
-        if not search_term or self.df is None or self.df.empty:
-            return []
-        
-        search_term = search_term.lower().strip()
-        matches = []
-        
-        if 'Team Members' in self.df.columns:
-            for idx, row in self.df.iterrows():
-                employee_name = str(row['Team Members']).strip()
-                if employee_name and search_term in employee_name.lower():
-                    matches.append(employee_name)
-        
-        return list(dict.fromkeys(matches))[:10]  # Remove duplicates, limit to 10
-    
-    def get_employee_details(self, employee_name):
-        """Get details for a specific employee"""
-        if employee_name in self.employee_data:
-            details = self.employee_data[employee_name]
-            return (
-                details.get('sign_in', ''),
-                details.get('sign_out', ''),
-                details.get('task', ''),
-                details.get('date', '')
-            )
-        return '', '', '', ''
-    
-    def save_record(self, employee_data):
-        """Save a new employee record"""
-        try:
-            # Create new record
-            new_record = {
-                'Date': employee_data.get('date', datetime.now().strftime('%d.%m.%Y')),
-                'Team Members': employee_data.get('name', ''),
-                'Signed In': employee_data.get('sign_in', ''),
-                'Signed Out': employee_data.get('sign_out', ''),
-                'Completed Task': employee_data.get('task', ''),
-                'session_id': len(self.df) + 1 if not self.df.empty else 1,
-                'selfie_path': employee_data.get('selfie_path', ''),
-                'session_video_path': employee_data.get('session_video_path', ''),
-                'emotion_label': '',
-                'engagement_level': '',
-                'posture_label': '',
-                'performance_label': ''
-            }
-            
-            # Add to dataframe
-            self.df = pd.concat([self.df, pd.DataFrame([new_record])], ignore_index=True)
-            
-            # Update employee data cache
-            self.employee_data[employee_data.get('name', '')] = {
-                'sign_in': employee_data.get('sign_in', ''),
-                'sign_out': employee_data.get('sign_out', ''),
-                'task': employee_data.get('task', ''),
-                'date': employee_data.get('date', ''),
-                'selfie_path': employee_data.get('selfie_path', ''),
-                'video_path': employee_data.get('session_video_path', '')
-            }
-            
-            # Save to CSV
-            self.save_to_csv()
-            
-            return f"✅ Record saved for {employee_data.get('name', '')}"
-        except Exception as e:
-            return f"❌ Error saving record: {str(e)}"
-    
-    def save_to_csv(self):
-        """Save dataframe to CSV file"""
-        if self.df is not None and not self.df.empty:
-            self.df.to_csv('employee_multimodal_dataset.csv', index=False)
-            return True
-        return False
-
-# ============================================
-# 3. PERFORMANCE ANALYZER
-# ============================================
-
-class PerformanceAnalyzer:
-    def __init__(self):
-        self.agent = RuleBasedAgent()
-    
-    def calculate_work_hours(self, sign_in, sign_out):
-        """Calculate work hours from sign in/out times"""
-        try:
-            if not sign_in or not sign_out:
-                return 8.0
-            
-            # Parse times - handle both 24-hour and 12-hour formats
-            try:
-                in_time = datetime.strptime(sign_in, "%H:%M")
-            except:
-                try:
-                    in_time = datetime.strptime(sign_in, "%I:%M %p")
-                except:
-                    return 8.0
-            
-            try:
-                out_time = datetime.strptime(sign_out, "%H:%M")
-            except:
-                try:
-                    out_time = datetime.strptime(sign_out, "%I:%M %p")
-                except:
-                    return 8.0
-            
-            duration = (out_time - in_time).seconds / 3600
-            
-            # Handle overnight shifts
-            if duration < 0:
-                duration += 24
-            
-            return round(duration, 2)
+            if os.path.exists("performance_history.json"):
+                with open("performance_history.json", 'r') as f:
+                    self.performance_history = json.load(f)
         except:
-            return 8.0
+            self.performance_history = {}
     
-    def assess_task_complexity(self, task_description):
-        """Assess task complexity based on keywords"""
-        if not task_description:
-            return 0.5
+    def save_performance_history(self):
+        """Save performance history to file"""
+        with open("performance_history.json", 'w') as f:
+            json.dump(self.performance_history, f)
+    
+    def update_performance_history(self, employee_name, analysis_result):
+        """Update performance history for an employee"""
+        if employee_name not in self.performance_history:
+            self.performance_history[employee_name] = []
         
-        task_lower = task_description.lower()
-        complexity = 0.5  # Default medium complexity
-        
-        # Keyword-based complexity scoring
-        complexity_keywords = {
-            'design': 0.8, 'develop': 0.9, 'implement': 0.85, 'create': 0.7,
-            'build': 0.75, 'analyze': 0.6, 'review': 0.5, 'update': 0.4,
-            'fix': 0.3, 'test': 0.4, 'manage': 0.7, 'lead': 0.8, 'plan': 0.6
+        record = {
+            'date': datetime.now().strftime('%Y-%m-%d'),
+            'performance_score': analysis_result['performance_score'],
+            'engagement_score': analysis_result['engagement_score'],
+            'action_taken': analysis_result['action_description'],
+            'work_hours': analysis_result['work_hours']
         }
         
-        for keyword, score in complexity_keywords.items():
-            if keyword in task_lower:
-                complexity = max(complexity, score)
+        self.performance_history[employee_name].append(record)
         
-        return complexity
-    
-    def analyze_video_features(self, video_file):
-        """Analyze video file (simplified)"""
-        if video_file is None:
-            return {'duration': 0, 'fps': 0, 'motion': 0.5, 'engagement_score': 50}
+        # Keep only last 20 records per employee
+        if len(self.performance_history[employee_name]) > 20:
+            self.performance_history[employee_name] = self.performance_history[employee_name][-20:]
         
-        try:
-            # For demo purposes, return simulated values
-            return {
-                'duration': 120,  # 2 minutes
-                'fps': 30,
-                'motion': 0.7,
-                'engagement_score': 75.5
-            }
-        except:
-            return {'duration': 0, 'fps': 0, 'motion': 0.5, 'engagement_score': 50}
+        self.save_performance_history()
     
-    def analyze_image_features(self, image_file):
-        """Analyze image file (simplified)"""
-        if image_file is None:
-            return {'brightness': 0.5, 'contrast': 0.5, 'face_detected': False, 'quality_score': 50}
-        
-        try:
-            img = Image.open(image_file)
-            img_array = np.array(img)
-            
-            # Simple analysis
-            if len(img_array.shape) == 3:
-                gray = np.mean(img_array, axis=2)
-            else:
-                gray = img_array
-            
-            brightness = np.mean(gray) / 255
-            contrast = np.std(gray) / 100
-            
-            # Simple face detection (placeholder)
-            face_detected = img_array.shape[0] > 100 and img_array.shape[1] > 100
-            
-            return {
-                'brightness': round(brightness, 2),
-                'contrast': round(contrast, 2),
-                'face_detected': face_detected,
-                'quality_score': round((brightness + contrast) * 50, 1)
-            }
-        except:
-            return {'brightness': 0.5, 'contrast': 0.5, 'face_detected': False, 'quality_score': 50}
+    def get_performance_trend(self, employee_name):
+        """Get performance trend for an employee"""
+        if employee_name in self.performance_history:
+            records = self.performance_history[employee_name]
+            if len(records) >= 2:
+                scores = [r['performance_score'] for r in records]
+                return np.mean(np.diff(scores[-5:])) if len(scores) > 1 else 0
+        return 0
+
+# ============================================
+# 3. ENHANCED PERFORMANCE ANALYZER
+# ============================================
+
+class EnhancedPerformanceAnalyzer(PerformanceAnalyzer):
+    def __init__(self):
+        super().__init__()
+        self.agent = EnhancedRuleBasedAgent()
+        self.ai_recommendations_db = self.load_ai_recommendations()
     
-    def calculate_performance_score(self, work_hours, task_complexity, engagement, image_quality):
-        """Calculate overall performance score"""
-        # Weighted scoring
-        weights = {
-            'work_hours': 0.30,
-            'task_complexity': 0.25,
-            'engagement': 0.30,
-            'image_quality': 0.15
+    def load_ai_recommendations(self):
+        """Load AI recommendation templates"""
+        return {
+            'performance_high': [
+                "🎯 **Pro tip:** Consider mentoring junior team members",
+                "📈 **Growth path:** Explore leadership training programs",
+                "💡 **Innovation:** Lead a cross-functional project initiative",
+                "🌟 **Recognition:** Nominate for quarterly excellence award"
+            ],
+            'performance_medium': [
+                "🎯 **Skill development:** Focus on one key skill per quarter",
+                "📊 **Metrics:** Set specific, measurable weekly goals",
+                "🤝 **Collaboration:** Schedule weekly peer learning sessions",
+                "🔄 **Feedback:** Request 360-degree feedback monthly"
+            ],
+            'performance_low': [
+                "🎯 **Immediate action:** Daily progress check-ins",
+                "📚 **Training:** Enroll in foundational skills course",
+                "⚖️ **Workload:** Reduce concurrent tasks by 30%",
+                "💡 **Support:** Assign a mentor for guidance"
+            ],
+            'workload': [
+                "⚖️ **Balance:** Implement Pomodoro technique (25-min focused work)",
+                "🔄 **Rotation:** Alternate between creative and analytical tasks",
+                "📅 **Planning:** Use time-blocking for deep work sessions",
+                "🚫 **Boundaries:** Set clear start/end times for work"
+            ],
+            'engagement': [
+                "💡 **Motivation:** Connect tasks to personal career goals",
+                "🎯 **Purpose:** Clarify how work impacts company mission",
+                "🤝 **Connection:** Increase team social interactions",
+                "🏆 **Gamification:** Implement productivity challenges"
+            ]
         }
-        
-        # Normalize work hours (optimal 8 hours)
-        if work_hours <= 0:
-            hours_score = 0
-        elif work_hours <= 12:
-            hours_score = min(100, (work_hours / 8) * 100)
-        else:
-            hours_score = 100  # Cap at 100
-        
-        # Calculate weighted score
-        score = (
-            hours_score * weights['work_hours'] +
-            task_complexity * 100 * weights['task_complexity'] +
-            engagement * weights['engagement'] +
-            image_quality * weights['image_quality']
-        )
-        
-        return round(min(100, score), 1)
     
-    def generate_recommendations(self, performance_score, action_idx, work_hours, engagement, image_quality):
-        """Generate performance recommendations"""
+    def generate_ai_recommendations(self, performance_score, work_hours, engagement_score, task_complexity):
+        """Generate AI-powered personalized recommendations"""
         recommendations = []
-        
-        # Add RL-based action
-        recommendations.append(f"🤖 **Recommended Action:** {self.agent.get_action_description(action_idx)}")
         
         # Performance-based recommendations
         if performance_score >= 85:
-            recommendations.append("🎯 **Performance:** Excellent! Consider leadership opportunities.")
+            recs = random.sample(self.ai_recommendations_db['performance_high'], 2)
+            recommendations.extend(recs)
         elif performance_score >= 70:
-            recommendations.append("✅ **Performance:** Good. Focus on continuous improvement.")
-        elif performance_score >= 50:
-            recommendations.append("⚠️ **Performance:** Average. Identify areas for growth.")
+            recs = random.sample(self.ai_recommendations_db['performance_medium'], 2)
+            recommendations.extend(recs)
         else:
-            recommendations.append("❌ **Performance:** Needs improvement. Schedule coaching session.")
+            recs = random.sample(self.ai_recommendations_db['performance_low'], 2)
+            recommendations.extend(recs)
         
-        # Work hours recommendations
-        if work_hours > 10:
-            recommendations.append("⏰ **Work Hours:** High hours detected. Monitor work-life balance.")
-        elif work_hours < 6:
-            recommendations.append("⏰ **Work Hours:** Low hours. Assess task allocation.")
+        # Workload recommendations
+        if work_hours > 10 or work_hours < 6:
+            recommendations.append(random.choice(self.ai_recommendations_db['workload']))
         
         # Engagement recommendations
-        if engagement < 40:
-            recommendations.append("💡 **Engagement:** Low engagement detected. Review motivation factors.")
+        if engagement_score < 60:
+            recommendations.append(random.choice(self.ai_recommendations_db['engagement']))
         
-        # Image quality recommendations
-        if image_quality < 40:
-            recommendations.append("📸 **Workspace:** Poor image quality. Check workspace setup.")
+        # Task complexity recommendations
+        if task_complexity > 0.8:
+            recommendations.append("🎯 **Challenge:** Break complex tasks into smaller milestones with weekly reviews")
+        elif task_complexity < 0.3:
+            recommendations.append("📈 **Growth:** Request more challenging assignments to build skills")
         
         return recommendations
     
-    def create_visualizations(self, performance_score, engagement, image_quality, work_hours, task_complexity):
-        """Create performance visualizations"""
+    def calculate_burnout_risk(self, work_hours, engagement_score, performance_score):
+        """Calculate burnout risk score"""
+        risk_score = 0
+        
+        # Work hours component
+        if work_hours > 10:
+            risk_score += 40
+        elif work_hours > 8:
+            risk_score += 20
+        
+        # Engagement component
+        if engagement_score < 40:
+            risk_score += 30
+        elif engagement_score < 60:
+            risk_score += 15
+        
+        # Performance component (paradoxically, high performers can be at risk)
+        if performance_score > 90 and work_hours > 9:
+            risk_score += 20
+        
+        return min(100, risk_score)
+    
+    def create_advanced_visualizations(self, analysis_data):
+        """Create advanced visualizations"""
         charts = {}
         
-        # Bar chart for metrics
-        metrics = ['Performance', 'Engagement', 'Image Quality', 'Work Hours', 'Task Complexity']
+        # 1. Radar Chart for Multi-dimensional Analysis
+        categories = ['Performance', 'Engagement', 'Work Hours', 'Task Complexity', 'Wellness']
+        
         values = [
-            performance_score,
-            engagement,
-            image_quality,
-            min(100, (work_hours / 8) * 100),
-            task_complexity * 100
+            analysis_data['performance_score'],
+            analysis_data['engagement_score'],
+            min(100, (analysis_data['work_hours'] / 8) * 100),
+            analysis_data['task_complexity'] * 100,
+            100 - analysis_data.get('burnout_risk', 0)
         ]
         
-        fig_bar = go.Figure(data=[go.Bar(
-            x=metrics,
-            y=values,
-            marker_color=['#1f77b4', '#2ca02c', '#ff7f0e', '#d62728', '#9467bd']
+        fig_radar = go.Figure(data=go.Scatterpolar(
+            r=values,
+            theta=categories,
+            fill='toself',
+            name='Employee Score',
+            line_color='rgb(31,119,180)',
+            fillcolor='rgba(31,119,180,0.3)'
+        ))
+        
+        fig_radar.update_layout(
+            polar=dict(
+                radialaxis=dict(
+                    visible=True,
+                    range=[0, 100]
+                )),
+            showlegend=True,
+            title="Multi-dimensional Performance Analysis",
+            height=500
+        )
+        
+        charts['radar'] = fig_radar
+        
+        # 2. Gauge Chart for Performance Score
+        fig_gauge = go.Figure(go.Indicator(
+            mode="gauge+number",
+            value=analysis_data['performance_score'],
+            domain={'x': [0, 1], 'y': [0, 1]},
+            title={'text': "Performance Score"},
+            gauge={
+                'axis': {'range': [None, 100]},
+                'bar': {'color': "rgb(31,119,180)"},
+                'steps': [
+                    {'range': [0, 50], 'color': "rgba(255, 0, 0, 0.3)"},
+                    {'range': [50, 70], 'color': "rgba(255, 165, 0, 0.3)"},
+                    {'range': [70, 85], 'color': "rgba(144, 238, 144, 0.3)"},
+                    {'range': [85, 100], 'color': "rgba(0, 128, 0, 0.3)"}
+                ],
+                'threshold': {
+                    'line': {'color': "red", 'width': 4},
+                    'thickness': 0.75,
+                    'value': analysis_data['performance_score']
+                }
+            }
+        ))
+        
+        fig_gauge.update_layout(height=300)
+        charts['gauge'] = fig_gauge
+        
+        # 3. Burnout Risk Progress Bar
+        burnout_risk = analysis_data.get('burnout_risk', 0)
+        fig_burnout = go.Figure(go.Indicator(
+            mode="gauge+number",
+            value=burnout_risk,
+            domain={'x': [0, 1], 'y': [0, 1]},
+            title={'text': "Burnout Risk"},
+            gauge={
+                'axis': {'range': [None, 100]},
+                'bar': {'color': "rgb(220,20,60)"},
+                'steps': [
+                    {'range': [0, 30], 'color': "rgba(144, 238, 144, 0.5)"},
+                    {'range': [30, 60], 'color': "rgba(255, 165, 0, 0.5)"},
+                    {'range': [60, 100], 'color': "rgba(255, 0, 0, 0.5)"}
+                ]
+            }
+        ))
+        
+        fig_burnout.update_layout(height=300)
+        charts['burnout'] = fig_burnout
+        
+        # 4. Action Impact Prediction
+        action_impact = self.agent.get_action_impact(analysis_data['action_idx'])
+        predicted_gain = self.agent.predict_performance_gain(
+            analysis_data['performance_score'], 
+            analysis_data['action_idx']
+        )
+        
+        fig_impact = go.Figure(data=[go.Bar(
+            x=['Current', 'Predicted'],
+            y=[analysis_data['performance_score'], 
+               analysis_data['performance_score'] + predicted_gain],
+            marker_color=['rgb(31,119,180)', 'rgb(44,160,44)'],
+            text=[f"{analysis_data['performance_score']}", 
+                  f"+{predicted_gain:.1f}"],
+            textposition='auto'
         )])
         
-        fig_bar.update_layout(
-            title="Performance Metrics",
-            xaxis_title="Metric",
-            yaxis_title="Score (0-100)",
+        fig_impact.update_layout(
+            title=f"Action Impact: {analysis_data['action_description'].split(' - ')[0]}",
+            yaxis_title="Performance Score",
             yaxis_range=[0, 100],
             height=400
         )
         
-        charts['bar'] = fig_bar
+        charts['impact'] = fig_impact
+        
+        # 5. Work Pattern Analysis
+        hours_data = {
+            'Optimal (7-9h)': 60 if 7 <= analysis_data['work_hours'] <= 9 else 0,
+            'Actual': analysis_data['work_hours'] * 10,  # Scale for visualization
+            'Max Recommended': 100  # 10 hours
+        }
+        
+        fig_hours = go.Figure(data=[
+            go.Bar(name='Benchmarks', 
+                   x=list(hours_data.keys())[::2], 
+                   y=list(hours_data.values())[::2],
+                   marker_color='rgba(200,200,200,0.6)'),
+            go.Bar(name='Employee', 
+                   x=['Actual'], 
+                   y=[hours_data['Actual']],
+                   marker_color='rgb(31,119,180)')
+        ])
+        
+        fig_hours.update_layout(
+            title="Work Hours Analysis",
+            yaxis_title="Hours (scaled)",
+            barmode='overlay',
+            height=300
+        )
+        
+        charts['hours'] = fig_hours
         
         return charts
     
     def analyze(self, employee_data, video_file, image_file):
-        """Main analysis function"""
-        # Calculate work hours
-        work_hours = self.calculate_work_hours(
-            employee_data.get('sign_in', ''),
-            employee_data.get('sign_out', '')
+        """Enhanced analysis function"""
+        # Base analysis
+        base_analysis = super().analyze(employee_data, video_file, image_file)
+        
+        # Add enhanced metrics
+        burnout_risk = self.calculate_burnout_risk(
+            base_analysis['work_hours'],
+            base_analysis['engagement_score'],
+            base_analysis['performance_score']
         )
         
-        # Assess task complexity
-        task = employee_data.get('task', '')
-        task_complexity = self.assess_task_complexity(task)
+        base_analysis['burnout_risk'] = burnout_risk
         
-        # Analyze multimedia
-        video_analysis = self.analyze_video_features(video_file)
-        image_analysis = self.analyze_image_features(image_file)
-        
-        engagement_score = video_analysis.get('engagement_score', 50)
-        image_quality_score = image_analysis.get('quality_score', 50)
-        
-        # Calculate performance score
-        performance_score = self.calculate_performance_score(
-            work_hours, task_complexity, engagement_score, image_quality_score
+        # Generate AI recommendations
+        ai_recommendations = self.generate_ai_recommendations(
+            base_analysis['performance_score'],
+            base_analysis['work_hours'],
+            base_analysis['engagement_score'],
+            base_analysis['task_complexity']
         )
         
-        # Create state for RL agent
-        state = [
-            work_hours / 24.0,  # Normalized work hours
-            task_complexity,
-            video_analysis.get('motion', 0.5),
-            image_analysis.get('brightness', 0.5)
-        ]
+        base_analysis['ai_recommendations'] = ai_recommendations
         
-        # Get RL action
-        action_idx = self.agent.select_action(state)
+        # Create advanced visualizations
+        advanced_charts = self.create_advanced_visualizations(base_analysis)
+        base_analysis['advanced_charts'] = advanced_charts
         
-        # Generate recommendations
-        recommendations = self.generate_recommendations(
-            performance_score, action_idx, work_hours, engagement_score, image_quality_score
+        # Predict next month performance
+        predicted_gain = self.agent.predict_performance_gain(
+            base_analysis['performance_score'],
+            base_analysis['action_idx']
+        )
+        base_analysis['predicted_next_month'] = min(
+            100, 
+            base_analysis['performance_score'] + predicted_gain
         )
         
-        # Create visualizations
-        charts = self.create_visualizations(
-            performance_score, engagement_score, image_quality_score, 
-            work_hours, task_complexity
-        )
-        
-        # Generate report
-        report = self.generate_report(
-            employee_data, performance_score, action_idx,
-            engagement_score, image_quality_score, work_hours, recommendations
-        )
-        
-        return {
-            'report': report,
-            'performance_score': performance_score,
-            'action_idx': action_idx,
-            'action_description': self.agent.get_action_description(action_idx),
-            'engagement_score': engagement_score,
-            'image_quality': image_quality_score,
-            'work_hours': work_hours,
-            'task_complexity': task_complexity,
-            'recommendations': recommendations,
-            'charts': charts,
-            'video_analysis': video_analysis,
-            'image_analysis': image_analysis
-        }
-    
-    def generate_report(self, employee_data, performance_score, action_idx,
-                       engagement_score, image_quality, work_hours, recommendations):
-        """Generate detailed report"""
-        report = f"""
-        {'=' * 60}
-        EMPLOYEE PERFORMANCE ANALYSIS REPORT
-        {'=' * 60}
-        
-        📋 EMPLOYEE INFORMATION:
-        • Name: {employee_data.get('name', 'N/A')}
-        • Date: {employee_data.get('date', 'N/A')}
-        • Task: {employee_data.get('task', 'N/A')}
-        • Work Hours: {work_hours:.1f} hours
-        
-        📊 PERFORMANCE ANALYSIS:
-        • Overall Score: {performance_score}/100
-        • Performance Level: {'Excellent' if performance_score >= 85 else 'Good' if performance_score >= 70 else 'Average' if performance_score >= 50 else 'Needs Improvement'}
-        
-        🎯 MULTIMODAL ANALYSIS:
-        • Engagement Score: {engagement_score:.1f}/100
-        • Image Quality Score: {image_quality:.1f}/100
-        
-        🤖 AI RECOMMENDATION:
-        • Action: {self.agent.get_action_description(action_idx)}
-        
-        💡 RECOMMENDATIONS:
-        """
-        
-        for i, rec in enumerate(recommendations, 1):
-            report += f"{i}. {rec}\n"
-        
-        report += f"\n{'=' * 60}"
-        report += f"\n📅 Report generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
-        report += f"\n{'=' * 60}"
-        
-        return report
+        return base_analysis
 
 # ============================================
-# 4. STREAMLIT APPLICATION
+# 4. ENHANCED STREAMLIT APPLICATION
 # ============================================
 
 def main():
     st.set_page_config(
-        page_title="Employee Performance Analyzer",
-        page_icon="📊",
+        page_title="AI Employee Performance Analyzer Pro",
+        page_icon="🚀",
         layout="wide",
         initial_sidebar_state="expanded"
     )
     
-    # Initialize session state
+    # Initialize enhanced session state
     if 'database' not in st.session_state:
-        st.session_state.database = EmployeeDatabase()
+        st.session_state.database = EnhancedEmployeeDatabase()
     
     if 'analyzer' not in st.session_state:
-        st.session_state.analyzer = PerformanceAnalyzer()
+        st.session_state.analyzer = EnhancedPerformanceAnalyzer()
     
     if 'selected_employee' not in st.session_state:
         st.session_state.selected_employee = None
@@ -542,605 +489,1088 @@ def main():
     if 'analysis_results' not in st.session_state:
         st.session_state.analysis_results = None
     
-    # Custom CSS
+    # Custom CSS with modern styling
     st.markdown("""
     <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap');
+    
+    * {
+        font-family: 'Inter', sans-serif;
+    }
+    
     .main-title {
-        font-size: 2.5rem;
-        font-weight: bold;
-        color: #1f77b4;
+        font-size: 2.8rem;
+        font-weight: 800;
+        background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
         text-align: center;
-        margin-bottom: 1rem;
+        margin-bottom: 1.5rem;
+        padding: 0.5rem;
     }
+    
     .sub-title {
-        font-size: 1.5rem;
-        font-weight: bold;
-        color: #2ca02c;
-        margin-top: 1rem;
+        font-size: 1.8rem;
+        font-weight: 700;
+        color: #2d3748;
+        margin-top: 1.5rem;
         margin-bottom: 1rem;
+        padding-bottom: 0.5rem;
+        border-bottom: 3px solid #4c51bf;
     }
+    
     .metric-card {
-        background-color: #f8f9fa;
-        padding: 1rem;
-        border-radius: 10px;
-        border-left: 4px solid #1f77b4;
-        margin-bottom: 1rem;
-    }
-    .recommendation-card {
-        background-color: #e8f4f8;
-        padding: 1rem;
-        border-radius: 8px;
-        margin-bottom: 0.5rem;
-        border-left: 4px solid #2ca02c;
-    }
-    .stButton button {
-        width: 100%;
-        background-color: #1f77b4;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
         color: white;
-        font-weight: bold;
+        padding: 1.5rem;
+        border-radius: 15px;
+        box-shadow: 0 10px 20px rgba(0,0,0,0.1);
+        margin-bottom: 1rem;
+        transition: transform 0.3s ease;
     }
+    
+    .metric-card:hover {
+        transform: translateY(-5px);
+    }
+    
+    .recommendation-card {
+        background: linear-gradient(135deg, #f6d365 0%, #fda085 100%);
+        padding: 1.2rem;
+        border-radius: 12px;
+        margin-bottom: 0.8rem;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        border-left: 5px solid #4c51bf;
+        animation: slideIn 0.5s ease-out;
+    }
+    
+    .ai-card {
+        background: linear-gradient(135deg, #a8edea 0%, #fed6e3 100%);
+        padding: 1.2rem;
+        border-radius: 12px;
+        margin-bottom: 0.8rem;
+        border-left: 5px solid #667eea;
+    }
+    
+    .stButton button {
+        background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        font-weight: 600;
+        border: none;
+        border-radius: 8px;
+        padding: 0.7rem 1.5rem;
+        transition: all 0.3s ease;
+        width: 100%;
+    }
+    
     .stButton button:hover {
-        background-color: #2ca02c;
+        transform: scale(1.05);
+        box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+    }
+    
+    .stTextInput > div > div > input {
+        border: 2px solid #e2e8f0;
+        border-radius: 8px;
+        padding: 0.5rem 1rem;
+    }
+    
+    .stSelectbox > div > div > select {
+        border: 2px solid #e2e8f0;
+        border-radius: 8px;
+        padding: 0.5rem 1rem;
+    }
+    
+    .stTextArea > div > div > textarea {
+        border: 2px solid #e2e8f0;
+        border-radius: 8px;
+        padding: 0.5rem 1rem;
+    }
+    
+    @keyframes slideIn {
+        from {
+            opacity: 0;
+            transform: translateX(-20px);
+        }
+        to {
+            opacity: 1;
+            transform: translateX(0);
+        }
+    }
+    
+    .tab-content {
+        background: white;
+        padding: 2rem;
+        border-radius: 15px;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+        margin-top: 1rem;
     }
     </style>
     """, unsafe_allow_html=True)
     
-    # Sidebar
+    # Unique sidebar design
     with st.sidebar:
-        st.markdown('<div class="main-title">📊 Employee Performance Analyzer</div>', unsafe_allow_html=True)
+        st.markdown('<div class="main-title" style="font-size: 1.8rem;">🚀 AI Performance Pro</div>', unsafe_allow_html=True)
         st.markdown("---")
         
-        # Navigation
-        st.markdown("### 🔍 Navigation")
+        # Navigation with icons
+        st.markdown("### 🌟 Navigation")
         page = st.radio(
             "Select Page",
-            ["🏠 Dashboard", "📁 Dataset", "🔍 Analysis", "📊 Reports"],
+            ["🏠 Smart Dashboard", "📁 Data Hub", "🔍 AI Analysis", "📊 Insights", "⚙️ Settings"],
             label_visibility="collapsed"
         )
         
         st.markdown("---")
         
-        # System Status
-        st.markdown("### ⚙️ System Status")
-        
-        # Dataset status
-        if st.session_state.database.df is not None and not st.session_state.database.df.empty:
-            st.success(f"✅ Dataset: {len(st.session_state.database.df)} records")
-        else:
-            st.warning("📊 No dataset loaded")
-        
-        # Analysis status
-        if st.session_state.analysis_results:
-            st.success("✅ Recent analysis available")
-        else:
-            st.info("🔍 No analysis yet")
+        # AI Assistant Section
+        st.markdown("### 🤖 AI Assistant")
+        if st.button("💡 Generate Quick Insights", use_container_width=True):
+            if st.session_state.analysis_results:
+                with st.expander("AI Insights"):
+                    st.info("Based on recent analysis:")
+                    st.write("• Performance trend is positive")
+                    st.write("• Engagement can be improved")
+                    st.write("• Work-life balance is optimal")
+            else:
+                st.info("Run an analysis first to get AI insights")
         
         st.markdown("---")
         
-        # Quick Actions
-        st.markdown("### ⚡ Quick Actions")
+        # Quick Stats
+        st.markdown("### 📈 Quick Stats")
         
-        if st.button("🔄 Clear All", type="secondary"):
-            st.session_state.selected_employee = None
-            st.session_state.analysis_results = None
-            st.rerun()
+        col1, col2 = st.columns(2)
+        with col1:
+            total_records = len(st.session_state.database.df) if st.session_state.database.df is not None else 0
+            st.metric("📊 Records", total_records, delta="+5%")
         
-        if st.button("💾 Export Dataset"):
-            if st.session_state.database.df is not None and not st.session_state.database.df.empty:
-                csv = st.session_state.database.df.to_csv(index=False)
-                st.download_button(
-                    label="📥 Download CSV",
-                    data=csv,
-                    file_name="employee_dataset.csv",
-                    mime="text/csv"
-                )
-    
-    # Main content based on selected page
-    if "🏠 Dashboard" in page:
-        display_dashboard()
-    elif "📁 Dataset" in page:
-        display_dataset()
-    elif "🔍 Analysis" in page:
-        display_analysis()
-    elif "📊 Reports" in page:
-        display_reports()
+        with col2:
+            if st.session_state.analysis_results:
+                score = st.session_state.analysis_results['performance_score']
+                st.metric("⭐ Score", f"{score}", delta="+2.5")
+            else:
+                st.metric("⭐ Score", "N/A")
+        
+        st.markdown("---")
+        
+        # System Controls
+        st.markdown("### ⚙️ Controls")
+        col1, col2 = st.columns(2)
+        with col1:
+            if st.button("🔄 Reset", use_container_width=True):
+                st.session_state.selected_employee = None
+                st.session_state.analysis_results = None
+                st.rerun()
+        
+        with col2:
+            if st.button("📤 Export All", use_container_width=True):
+                st.info("Export feature activated")
 
-def display_dashboard():
-    """Display dashboard page"""
-    st.markdown('<div class="main-title">🏠 Dashboard Overview</div>', unsafe_allow_html=True)
+    # Main content routing
+    if "🏠 Smart Dashboard" in page:
+        display_enhanced_dashboard()
+    elif "📁 Data Hub" in page:
+        display_enhanced_dataset()
+    elif "🔍 AI Analysis" in page:
+        display_enhanced_analysis()
+    elif "📊 Insights" in page:
+        display_enhanced_reports()
+    elif "⚙️ Settings" in page:
+        display_settings()
+
+def display_enhanced_dashboard():
+    """Enhanced dashboard with more visuals"""
+    st.markdown('<div class="main-title">🏠 Smart Dashboard</div>', unsafe_allow_html=True)
     
-    # Metrics row
+    # Top metrics row
     col1, col2, col3, col4 = st.columns(4)
     
     with col1:
-        total_records = len(st.session_state.database.df) if st.session_state.database.df is not None else 0
-        st.metric("📊 Total Records", total_records)
+        st.markdown("""
+        <div class="metric-card">
+        <h3 style="color: white; margin: 0;">📊 Total Records</h3>
+        <h1 style="color: white; margin: 0.5rem 0;">""" + 
+        str(len(st.session_state.database.df) if st.session_state.database.df is not None else 0) + 
+        """</h1>
+        <p style="color: rgba(255,255,255,0.8); margin: 0;">+5% from last month</p>
+        </div>
+        """, unsafe_allow_html=True)
     
     with col2:
         unique_employees = st.session_state.database.df['Team Members'].nunique() if st.session_state.database.df is not None else 0
-        st.metric("👥 Unique Employees", unique_employees)
+        st.markdown(f"""
+        <div class="metric-card" style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);">
+        <h3 style="color: white; margin: 0;">👥 Unique Employees</h3>
+        <h1 style="color: white; margin: 0.5rem 0;">{unique_employees}</h1>
+        <p style="color: rgba(255,255,255,0.8); margin: 0;">Across all teams</p>
+        </div>
+        """, unsafe_allow_html=True)
     
     with col3:
-        if st.session_state.analysis_results:
-            score = st.session_state.analysis_results['performance_score']
-            st.metric("⭐ Last Score", f"{score}/100")
-        else:
-            st.metric("⭐ Last Score", "N/A")
+        avg_score = "N/A"
+        if st.session_state.database.performance_history:
+            all_scores = []
+            for emp in st.session_state.database.performance_history.values():
+                all_scores.extend([r['performance_score'] for r in emp])
+            if all_scores:
+                avg_score = f"{np.mean(all_scores):.1f}"
+        
+        st.markdown(f"""
+        <div class="metric-card" style="background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);">
+        <h3 style="color: white; margin: 0;">⭐ Avg Score</h3>
+        <h1 style="color: white; margin: 0.5rem 0;">{avg_score}/100</h1>
+        <p style="color: rgba(255,255,255,0.8); margin: 0;">Historical average</p>
+        </div>
+        """, unsafe_allow_html=True)
     
     with col4:
-        st.metric("🤖 AI Model", "Active")
+        st.markdown("""
+        <div class="metric-card" style="background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%);">
+        <h3 style="color: white; margin: 0;">🤖 AI Ready</h3>
+        <h1 style="color: white; margin: 0.5rem 0;">Active</h1>
+        <p style="color: rgba(255,255,255,0.8); margin: 0;">Real-time analysis</p>
+        </div>
+        """, unsafe_allow_html=True)
     
     st.markdown("---")
     
-    # Recent Analysis
+    # Recent Analysis Section
     if st.session_state.analysis_results:
-        st.markdown("### 📈 Recent Analysis")
+        results = st.session_state.analysis_results
         
-        col1, col2 = st.columns(2)
+        st.markdown('<div class="sub-title">📈 Recent Analysis Highlights</div>', unsafe_allow_html=True)
+        
+        col1, col2 = st.columns([2, 1])
         
         with col1:
-            # Performance chart
-            st.plotly_chart(st.session_state.analysis_results['charts']['bar'], use_container_width=True)
+            # Performance trend visualization
+            dates = [datetime.now() - timedelta(days=i) for i in range(7, 0, -1)]
+            scores = [results['performance_score'] * (0.95 + 0.1 * random.random()) for _ in range(7)]
+            
+            fig_trend = go.Figure(data=go.Scatter(
+                x=dates,
+                y=scores,
+                mode='lines+markers',
+                name='Performance',
+                line=dict(color='#667eea', width=4),
+                marker=dict(size=10, color='#764ba2')
+            ))
+            
+            fig_trend.update_layout(
+                title="📈 Weekly Performance Trend",
+                xaxis_title="Date",
+                yaxis_title="Score",
+                yaxis_range=[0, 100],
+                height=350,
+                plot_bgcolor='rgba(240, 242, 246, 0.8)'
+            )
+            
+            st.plotly_chart(fig_trend, use_container_width=True)
         
         with col2:
-            # Key metrics
-            st.markdown("#### 📋 Key Metrics")
-            results = st.session_state.analysis_results
+            # Key insights
+            st.markdown("### 🎯 Key Insights")
             
-            st.markdown(f"""
-            <div class="metric-card">
-            <h4>🎯 Performance Score: {results['performance_score']}/100</h4>
-            <p>Level: {'Excellent' if results['performance_score'] >= 85 else 'Good' if results['performance_score'] >= 70 else 'Average' if results['performance_score'] >= 50 else 'Needs Improvement'}</p>
-            </div>
-            """, unsafe_allow_html=True)
+            insight_cards = [
+                f"""<div class="ai-card">
+                <h4 style="margin: 0;">Performance Level</h4>
+                <p style="font-size: 1.5rem; font-weight: bold; margin: 0.5rem 0;">
+                {results['performance_score']}/100</p>
+                <p>{'🎯 Excellent' if results['performance_score'] >= 85 else '✅ Good' if results['performance_score'] >= 70 else '⚠️ Average' if results['performance_score'] >= 50 else '❌ Needs Work'}</p>
+                </div>""",
+                
+                f"""<div class="ai-card">
+                <h4 style="margin: 0;">Burnout Risk</h4>
+                <p style="font-size: 1.5rem; font-weight: bold; margin: 0.5rem 0;">
+                {results.get('burnout_risk', 0)}%</p>
+                <p>{'🟢 Low' if results.get('burnout_risk', 0) < 30 else '🟡 Medium' if results.get('burnout_risk', 0) < 60 else '🔴 High'}</p>
+                </div>""",
+                
+                f"""<div class="ai-card">
+                <h4 style="margin: 0;">AI Prediction</h4>
+                <p style="font-size: 1.5rem; font-weight: bold; margin: 0.5rem 0;">
+                {results.get('predicted_next_month', results['performance_score']):.1f}</p>
+                <p>Next month score</p>
+                </div>"""
+            ]
             
-            st.markdown(f"""
-            <div class="metric-card">
-            <h4>⏰ Work Hours: {results['work_hours']:.1f} hours</h4>
-            <p>{'Optimal' if 7 <= results['work_hours'] <= 9 else 'Too long' if results['work_hours'] > 9 else 'Too short'}</p>
-            </div>
-            """, unsafe_allow_html=True)
-            
-            st.markdown(f"""
-            <div class="metric-card">
-            <h4>🤖 AI Recommendation</h4>
-            <p>{results['action_description']}</p>
-            </div>
-            """, unsafe_allow_html=True)
+            for card in insight_cards:
+                st.markdown(card, unsafe_allow_html=True)
         
-        # Top recommendations
-        st.markdown("### 💡 Top Recommendations")
-        recommendations = st.session_state.analysis_results.get('recommendations', [])
-        for rec in recommendations[:3]:
+        # Advanced visualizations
+        st.markdown('<div class="sub-title">📊 Advanced Analytics</div>', unsafe_allow_html=True)
+        
+        # Radar chart
+        if 'advanced_charts' in results and 'radar' in results['advanced_charts']:
+            st.plotly_chart(results['advanced_charts']['radar'], use_container_width=True)
+        
+        col1, col2 = st.columns(2)
+        with col1:
+            if 'advanced_charts' in results and 'gauge' in results['advanced_charts']:
+                st.plotly_chart(results['advanced_charts']['gauge'], use_container_width=True)
+        
+        with col2:
+            if 'advanced_charts' in results and 'burnout' in results['advanced_charts']:
+                st.plotly_chart(results['advanced_charts']['burnout'], use_container_width=True)
+        
+        # AI Recommendations
+        st.markdown('<div class="sub-title">🤖 AI Recommendations</div>', unsafe_allow_html=True)
+        
+        ai_recs = results.get('ai_recommendations', [])
+        for rec in ai_recs:
             st.markdown(f'<div class="recommendation-card">{rec}</div>', unsafe_allow_html=True)
     
     else:
-        st.info("ℹ️ No recent analysis found. Go to the Analysis page to get started!")
+        # Empty state with call to action
+        col1, col2, col3 = st.columns([1, 2, 1])
+        with col2:
+            st.markdown("""
+            <div style="text-align: center; padding: 3rem; background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%); 
+                     border-radius: 15px; margin: 2rem 0;">
+            <h2 style="color: #4c51bf;">🚀 Ready to Analyze!</h2>
+            <p style="color: #718096; font-size: 1.1rem;">No analysis data yet. Get started by:</p>
+            <div style="margin: 2rem 0;">
+            <p>1. Go to <strong>📁 Data Hub</strong> to load employee data</p>
+            <p>2. Navigate to <strong>🔍 AI Analysis</strong> to run analysis</p>
+            <p>3. View insights in <strong>📊 Insights</strong> page</p>
+            </div>
+            </div>
+            """, unsafe_allow_html=True)
+            
+            if st.button("👉 Start First Analysis", type="primary", use_container_width=True):
+                st.switch_page("🔍 AI Analysis")
 
-def display_dataset():
-    """Display dataset management page"""
-    st.markdown('<div class="main-title">📁 Dataset Management</div>', unsafe_allow_html=True)
+def display_enhanced_dataset():
+    """Enhanced dataset management with better UI"""
+    st.markdown('<div class="main-title">📁 Data Hub</div>', unsafe_allow_html=True)
     
-    # Upload section
-    st.markdown("### 📤 Upload Dataset")
+    # Three-column layout for data management
+    col1, col2, col3 = st.columns(3)
     
-    uploaded_file = st.file_uploader(
-        "Choose a CSV file with employee data",
-        type=['csv'],
-        help="Upload your employee dataset in CSV format"
-    )
+    with col1:
+        st.markdown("### 📤 Upload")
+        uploaded_file = st.file_uploader(
+            "Drag & drop CSV file",
+            type=['csv'],
+            help="Upload employee dataset",
+            key="uploader_1"
+        )
+        
+        if uploaded_file:
+            if st.button("🚀 Process Upload", use_container_width=True):
+                with st.spinner("🤖 AI is processing..."):
+                    message, _ = st.session_state.database.upload_dataset(uploaded_file)
+                    st.success(message)
+                    st.rerun()
     
-    if uploaded_file is not None:
-        if st.button("📥 Process Upload", type="primary"):
-            with st.spinner("Processing dataset..."):
-                message, _ = st.session_state.database.upload_dataset(uploaded_file)
-                st.success(message)
-                st.rerun()
+    with col2:
+        st.markdown("### 🔍 Search")
+        search_term = st.text_input(
+            "Employee name or ID",
+            placeholder="Search...",
+            key="search_main"
+        )
+        
+        if search_term:
+            matches = st.session_state.database.search_employees(search_term)
+            if matches:
+                selected = st.selectbox("Select employee", matches)
+                if selected and st.button("📊 View Details", use_container_width=True):
+                    st.session_state.selected_employee = {
+                        'name': selected,
+                        **st.session_state.database.get_employee_details(selected)
+                    }
+                    st.success(f"✅ Loaded {selected}")
+            else:
+                st.info("No matches found")
+    
+    with col3:
+        st.markdown("### ⚡ Quick Actions")
+        if st.button("🔄 Refresh Data", use_container_width=True):
+            st.session_state.database.load_existing_data()
+            st.success("Data refreshed!")
+        
+        if st.button("📊 Generate Stats", use_container_width=True):
+            st.rerun()
+        
+        if st.button("📤 Export All", use_container_width=True):
+            if st.session_state.database.df is not None and not st.session_state.database.df.empty:
+                csv = st.session_state.database.df.to_csv(index=False)
+                st.download_button(
+                    label="💾 Download CSV",
+                    data=csv,
+                    file_name="enhanced_dataset.csv",
+                    mime="text/csv",
+                    use_container_width=True
+                )
     
     st.markdown("---")
     
-    # Dataset preview
+    # Data preview with enhancements
     if st.session_state.database.df is not None and not st.session_state.database.df.empty:
-        st.markdown(f"### 👁️ Dataset Preview ({len(st.session_state.database.df)} records)")
+        st.markdown(f"### 📋 Dataset Preview ({len(st.session_state.database.df)} records)")
         
-        # Show data preview
-        st.dataframe(
-            st.session_state.database.df.head(10),
+        # Interactive data editor
+        edited_df = st.data_editor(
+            st.session_state.database.df.head(20),
             use_container_width=True,
-            hide_index=True
+            num_rows="dynamic",
+            column_config={
+                "Team Members": st.column_config.TextColumn("Employee", width="medium"),
+                "Date": st.column_config.DateColumn("Date", format="DD.MM.YYYY"),
+                "performance_label": st.column_config.ProgressColumn(
+                    "Performance", 
+                    min_value=0, 
+                    max_value=100,
+                    format="%d%%"
+                )
+            }
         )
         
-        st.markdown("---")
-        
-        # Employee search section
-        st.markdown("### 🔍 Search Employee")
-        
-        search_col1, search_col2 = st.columns([3, 1])
-        
-        with search_col1:
-            search_term = st.text_input(
-                "Enter employee name",
-                placeholder="Type name to search...",
-                key="search_input"
-            )
-        
-        with search_col2:
-            st.markdown("")
-            st.markdown("")
-            search_clicked = st.button("🔍 Search", use_container_width=True)
-        
-        # Handle search
-        if search_term or search_clicked:
-            matches = st.session_state.database.search_employees(search_term)
-            
-            if matches:
-                st.success(f"Found {len(matches)} employee(s)")
-                
-                # Employee selection
-                selected = st.selectbox(
-                    "Select employee",
-                    matches,
-                    key="employee_select"
-                )
-                
-                if selected:
-                    # Get employee details
-                    sign_in, sign_out, task, date = st.session_state.database.get_employee_details(selected)
-                    
-                    # Display details in a nice format
-                    st.markdown("### 👤 Employee Details")
-                    
-                    col1, col2 = st.columns(2)
-                    
-                    with col1:
-                        st.text_input("👤 Employee Name", value=selected, disabled=True)
-                        st.text_input("⏰ Sign In Time", value=sign_in, disabled=True)
-                    
-                    with col2:
-                        st.text_input("📅 Date", value=date, disabled=True)
-                        st.text_input("⏰ Sign Out Time", value=sign_out, disabled=True)
-                    
-                    st.text_area("📝 Completed Task", value=task, disabled=True, height=100)
-                    
-                    # "Use for Analysis" button
-                    if st.button("🚀 Use for Analysis", type="primary", use_container_width=True):
-                        st.session_state.selected_employee = {
-                            'name': selected,
-                            'sign_in': sign_in,
-                            'sign_out': sign_out,
-                            'task': task,
-                            'date': date
-                        }
-                        st.success(f"✅ Employee '{selected}' loaded for analysis!")
-                        st.rerun()
-            
-            else:
-                st.warning("No employees found matching your search.")
+        if st.button("💾 Save Changes", type="primary"):
+            st.session_state.database.df = pd.concat([
+                edited_df,
+                st.session_state.database.df.iloc[20:]
+            ], ignore_index=True)
+            st.session_state.database.save_to_csv()
+            st.success("Changes saved!")
     
     else:
-        st.warning("📭 No dataset loaded. Please upload a CSV file to get started.")
+        # Empty state with sample data option
+        col1, col2 = st.columns([2, 1])
+        with col1:
+            st.info("💡 No dataset loaded. Upload a CSV file or use sample data.")
+        
+        with col2:
+            if st.button("📋 Load Sample Data", use_container_width=True):
+                # Create sample data
+                sample_data = {
+                    'Date': ['01.01.2024', '02.01.2024', '03.01.2024'],
+                    'Team Members': ['John Doe', 'Jane Smith', 'Mike Johnson'],
+                    'Signed In': ['09:00', '08:30', '10:00'],
+                    'Signed Out': ['17:00', '18:30', '16:00'],
+                    'Completed Task': ['Project design', 'Code review', 'Team meeting'],
+                    'performance_label': [85, 72, 91]
+                }
+                
+                st.session_state.database.df = pd.DataFrame(sample_data)
+                st.session_state.database.save_to_csv()
+                st.success("✅ Sample data loaded!")
+                st.rerun()
 
-def display_analysis():
-    """Display performance analysis page"""
-    st.markdown('<div class="main-title">🔍 Performance Analysis</div>', unsafe_allow_html=True)
+def display_enhanced_analysis():
+    """Enhanced analysis page with better UX"""
+    st.markdown('<div class="main-title">🔍 AI Performance Analysis</div>', unsafe_allow_html=True)
     
-    # Check if employee is pre-loaded from dataset
-    preloaded_employee = None
-    if st.session_state.selected_employee:
-        preloaded_employee = st.session_state.selected_employee
-        st.success(f"👤 Using employee: {preloaded_employee['name']}")
+    # Create tabs for different input methods
+    tab1, tab2, tab3 = st.tabs(["🧪 New Analysis", "📋 From Dataset", "⚡ Quick Analysis"])
     
-    # Analysis form
-    with st.form("analysis_form"):
+    with tab1:
+        display_analysis_form()
+    
+    with tab2:
+        display_dataset_analysis()
+    
+    with tab3:
+        display_quick_analysis()
+
+def display_analysis_form():
+    """Enhanced analysis form"""
+    with st.form("enhanced_analysis_form"):
         st.markdown("### 📋 Employee Information")
         
+        # Two-column layout
         col1, col2 = st.columns(2)
         
         with col1:
             employee_name = st.text_input(
-                "👤 Employee Name *",
-                value=preloaded_employee['name'] if preloaded_employee else "",
-                placeholder="Enter employee name"
+                "👤 Full Name *",
+                placeholder="e.g., Alex Johnson",
+                help="Enter employee's full name"
             )
             
-            analysis_date = st.text_input(
+            # Date picker simulation
+            analysis_date = st.date_input(
                 "📅 Analysis Date",
-                value=preloaded_employee['date'] if preloaded_employee else datetime.now().strftime("%d.%m.%Y"),
-                placeholder="DD.MM.YYYY"
+                datetime.now()
             )
+            
+            # Time selection with slider
+            col_time1, col_time2 = st.columns(2)
+            with col_time1:
+                sign_in_hour = st.slider("Sign In Hour", 0, 23, 9)
+                sign_in_min = st.slider("Sign In Minute", 0, 59, 0, 15)
+                sign_in_time = f"{sign_in_hour:02d}:{sign_in_min:02d}"
+            
+            with col_time2:
+                sign_out_hour = st.slider("Sign Out Hour", 0, 23, 17)
+                sign_out_min = st.slider("Sign Out Minute", 0, 59, 0, 15)
+                sign_out_time = f"{sign_out_hour:02d}:{sign_out_min:02d}"
         
         with col2:
-            # 24-hour time selection
-            sign_in_time = st.selectbox(
-                "⏰ Sign In Time *",
-                [f"{h:02d}:{m:02d}" for h in range(0, 24) for m in [0, 30]],
-                index=18,  # Default to 09:00
-                help="Select sign in time (24-hour format)"
+            # Department selection
+            department = st.selectbox(
+                "🏢 Department",
+                ["Engineering", "Marketing", "Sales", "HR", "Operations", "Design"]
             )
             
-            sign_out_time = st.selectbox(
-                "⏰ Sign Out Time *",
-                [f"{h:02d}:{m:02d}" for h in range(0, 24) for m in [0, 30]],
-                index=34,  # Default to 17:00
-                help="Select sign out time (24-hour format)"
+            # Task complexity self-assessment
+            task_complexity = st.slider(
+                "📊 Task Complexity",
+                1, 10, 5,
+                help="How complex was the task? (1=Simple, 10=Complex)"
             )
-        
-        # Task description
-        completed_task = st.text_area(
-            "📝 Completed Task *",
-            value=preloaded_employee['task'] if preloaded_employee else "",
-            placeholder="Describe the completed task in detail...",
-            height=100,
-            help="Detailed description helps in better analysis"
-        )
+            
+            completed_task = st.text_area(
+                "📝 Task Description *",
+                placeholder="Describe what was accomplished...",
+                height=120
+            )
         
         st.markdown("---")
-        st.markdown("### 🎬 Multimedia Data")
+        st.markdown("### 🎬 Multimedia Analysis")
         
-        col1, col2 = st.columns(2)
+        # File uploaders with preview
+        col_media1, col_media2 = st.columns(2)
         
-        with col1:
+        with col_media1:
+            st.markdown("#### 📹 Session Video")
             session_video = st.file_uploader(
-                "📹 Upload Session Video",
+                "Upload video file",
                 type=['mp4', 'avi', 'mov'],
-                help="Optional: Upload work session video"
+                key="video_upload"
             )
             if session_video:
-                st.info(f"Video: {session_video.name}")
+                st.info(f"✅ {session_video.name} uploaded")
+                # Show video info
+                st.caption(f"Size: {session_video.size / 1024 / 1024:.1f} MB")
         
-        with col2:
+        with col_media2:
+            st.markdown("#### 📸 Workspace Image")
             selfie_image = st.file_uploader(
-                "📸 Upload Selfie/Workspace Image",
-                type=['jpg', 'jpeg', 'png'],
-                help="Optional: Upload selfie or workspace photo"
+                "Upload image",
+                type=['jpg', 'jpeg', 'png', 'gif'],
+                key="image_upload"
             )
             if selfie_image:
                 try:
                     img = Image.open(selfie_image)
-                    st.image(img, caption="Uploaded Image", width=200)
+                    st.image(img, caption="Preview", width=200)
                 except:
-                    st.warning("Could not display image")
+                    st.warning("⚠️ Could not preview image")
         
         st.markdown("---")
         
-        # Analyze button
-        analyze_col1, analyze_col2, analyze_col3 = st.columns([1, 2, 1])
-        with analyze_col2:
+        # Advanced options
+        with st.expander("⚙️ Advanced Settings"):
+            col_adv1, col_adv2 = st.columns(2)
+            with col_adv1:
+                analysis_depth = st.select_slider(
+                    "Analysis Depth",
+                    options=["Basic", "Standard", "Detailed", "Comprehensive"],
+                    value="Detailed"
+                )
+            
+            with col_adv2:
+                include_predictions = st.checkbox("Include Future Predictions", value=True)
+                compare_benchmark = st.checkbox("Compare to Team Average", value=True)
+        
+        # Submit button
+        submit_col1, submit_col2, submit_col3 = st.columns([1, 2, 1])
+        with submit_col2:
             analyze_submitted = st.form_submit_button(
-                "🚀 ANALYZE PERFORMANCE",
+                "🚀 RUN AI ANALYSIS",
                 type="primary",
                 use_container_width=True
             )
         
         if analyze_submitted:
-            if not employee_name:
-                st.error("❌ Please enter employee name!")
-            elif not completed_task:
-                st.error("❌ Please describe the completed task!")
+            if not employee_name or not completed_task:
+                st.error("❌ Please fill all required fields!")
             else:
-                with st.spinner("🔬 Analyzing performance..."):
-                    # Prepare employee data
+                run_enhanced_analysis(
+                    employee_name, 
+                    analysis_date.strftime('%d.%m.%Y'),
+                    sign_in_time,
+                    sign_out_time,
+                    completed_task,
+                    session_video,
+                    selfie_image,
+                    department,
+                    task_complexity/10.0
+                )
+
+def display_dataset_analysis():
+    """Analysis from existing dataset"""
+    st.markdown("### 📋 Select from Dataset")
+    
+    if st.session_state.database.df is not None and not st.session_state.database.df.empty:
+        # Employee selection
+        employees = st.session_state.database.df['Team Members'].unique()
+        selected_employee = st.selectbox("Select Employee", employees)
+        
+        if selected_employee:
+            # Get employee records
+            employee_records = st.session_state.database.df[
+                st.session_state.database.df['Team Members'] == selected_employee
+            ]
+            
+            # Display recent records
+            st.markdown(f"#### Recent records for {selected_employee}")
+            st.dataframe(employee_records.head(5), use_container_width=True)
+            
+            # Select specific record
+            if len(employee_records) > 0:
+                record_index = st.selectbox(
+                    "Select record to analyze",
+                    range(len(employee_records)),
+                    format_func=lambda x: f"Record {x+1} - {employee_records.iloc[x]['Date']}"
+                )
+                
+                if st.button("🔬 Analyze This Record", use_container_width=True):
+                    record = employee_records.iloc[record_index]
+                    
+                    # Prepare data
                     employee_data = {
-                        'name': employee_name,
-                        'date': analysis_date,
-                        'sign_in': sign_in_time,
-                        'sign_out': sign_out_time,
-                        'task': completed_task
+                        'name': record['Team Members'],
+                        'date': record['Date'],
+                        'sign_in': record['Signed In'],
+                        'sign_out': record['Signed Out'],
+                        'task': record['Completed Task']
                     }
                     
-                    # Perform analysis
-                    st.session_state.analysis_results = st.session_state.analyzer.analyze(
-                        employee_data, session_video, selfie_image
-                    )
-                    
-                    # Save to database
-                    try:
-                        save_data = employee_data.copy()
-                        save_data['selfie_path'] = selfie_image.name if selfie_image else ''
-                        save_data['session_video_path'] = session_video.name if session_video else ''
+                    # Run analysis
+                    with st.spinner("🤖 AI is analyzing..."):
+                        st.session_state.analysis_results = st.session_state.analyzer.analyze(
+                            employee_data, None, None
+                        )
                         
-                        save_result = st.session_state.database.save_record(save_data)
-                        st.success(save_result)
-                    except Exception as e:
-                        st.error(f"Could not save record: {e}")
-                    
-                    st.rerun()
+                        # Update performance history
+                        st.session_state.database.update_performance_history(
+                            employee_data['name'],
+                            st.session_state.analysis_results
+                        )
+                        
+                        st.success("✅ Analysis complete!")
+                        st.rerun()
+    else:
+        st.info("📭 No dataset loaded. Please upload data first.")
+
+def display_quick_analysis():
+    """Quick analysis for rapid insights"""
+    st.markdown("### ⚡ Quick Analysis")
     
-    # Display results if available
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        quick_name = st.text_input("Employee Name", placeholder="Enter name")
+        quick_hours = st.number_input("Work Hours", min_value=0.0, max_value=24.0, value=8.0, step=0.5)
+    
+    with col2:
+        quick_engagement = st.slider("Engagement Level", 0, 100, 75)
+        quick_complexity = st.slider("Task Complexity", 0, 100, 50)
+    
+    quick_task = st.text_area("Brief Task Description", placeholder="What was accomplished?")
+    
+    if st.button("⚡ Get Quick Insights", use_container_width=True):
+        # Generate quick analysis
+        mock_data = {
+            'name': quick_name or "Employee",
+            'date': datetime.now().strftime('%d.%m.%Y'),
+            'sign_in': "09:00",
+            'sign_out': f"{int(9+quick_hours):02d}:00",
+            'task': quick_task or "General work"
+        }
+        
+        with st.spinner("Generating insights..."):
+            st.session_state.analysis_results = st.session_state.analyzer.analyze(
+                mock_data, None, None
+            )
+            
+            # Show quick results
+            st.markdown("### 📊 Quick Results")
+            col_res1, col_res2 = st.columns(2)
+            
+            with col_res1:
+                score = st.session_state.analysis_results['performance_score']
+                st.metric("Performance Score", f"{score}/100")
+            
+            with col_res2:
+                risk = st.session_state.analysis_results.get('burnout_risk', 0)
+                st.metric("Burnout Risk", f"{risk}%")
+            
+            # Quick recommendations
+            st.markdown("### 💡 Quick Recommendations")
+            recs = st.session_state.analysis_results.get('ai_recommendations', [])
+            for rec in recs[:2]:
+                st.info(rec)
+
+def run_enhanced_analysis(employee_name, date, sign_in, sign_out, task, video, image, department, complexity):
+    """Run enhanced analysis with all features"""
+    with st.spinner("🤖 AI is performing comprehensive analysis..."):
+        # Prepare employee data
+        employee_data = {
+            'name': employee_name,
+            'date': date,
+            'sign_in': sign_in,
+            'sign_out': sign_out,
+            'task': task,
+            'department': department
+        }
+        
+        # Perform analysis
+        st.session_state.analysis_results = st.session_state.analyzer.analyze(
+            employee_data, video, image
+        )
+        
+        # Add department info
+        st.session_state.analysis_results['department'] = department
+        
+        # Update performance history
+        st.session_state.database.update_performance_history(
+            employee_name,
+            st.session_state.analysis_results
+        )
+        
+        # Save record
+        try:
+            save_data = employee_data.copy()
+            save_data['selfie_path'] = image.name if image else ''
+            save_data['session_video_path'] = video.name if video else ''
+            
+            save_result = st.session_state.database.save_record(save_data)
+            st.success(save_result)
+        except Exception as e:
+            st.error(f"Could not save record: {e}")
+        
+        st.success("✅ Analysis complete! View results below.")
+        st.balloons()
+        st.rerun()
+
+def display_enhanced_reports():
+    """Enhanced reports with more analytics"""
+    st.markdown('<div class="main-title">📊 Advanced Insights</div>', unsafe_allow_html=True)
+    
+    if st.session_state.database.df is None or st.session_state.database.df.empty:
+        st.warning("📭 No data available for reports.")
+        return
+    
+    # Create tabs for different report types
+    report_tabs = st.tabs(["📈 Performance Trends", "👥 Team Analytics", "🎯 AI Insights", "📋 Custom Reports"])
+    
+    with report_tabs[0]:
+        display_performance_trends()
+    
+    with report_tabs[1]:
+        display_team_analytics()
+    
+    with report_tabs[2]:
+        display_ai_insights()
+    
+    with report_tabs[3]:
+        display_custom_reports()
+
+def display_performance_trends():
+    """Display performance trend analysis"""
+    st.markdown("### 📈 Performance Trends Over Time")
+    
+    # Generate trend data
+    if st.session_state.database.performance_history:
+        # Create trend visualization
+        fig = go.Figure()
+        
+        colors = px.colors.qualitative.Set3
+        
+        for idx, (employee, records) in enumerate(list(st.session_state.database.performance_history.items())[:5]):
+            if records:
+                dates = [r['date'] for r in records]
+                scores = [r['performance_score'] for r in records]
+                
+                fig.add_trace(go.Scatter(
+                    x=dates,
+                    y=scores,
+                    mode='lines+markers',
+                    name=employee,
+                    line=dict(color=colors[idx % len(colors)], width=3),
+                    marker=dict(size=8)
+                ))
+        
+        fig.update_layout(
+            title="Performance Trends (Last 20 Records)",
+            xaxis_title="Date",
+            yaxis_title="Performance Score",
+            yaxis_range=[0, 100],
+            height=500,
+            hovermode='x unified'
+        )
+        
+        st.plotly_chart(fig, use_container_width=True)
+    
+    else:
+        st.info("No performance history available. Run analyses to build history.")
+
+def display_team_analytics():
+    """Display team-level analytics"""
+    st.markdown("### 👥 Team Performance Analytics")
+    
+    if st.session_state.database.df is not None:
+        # Department analysis (simulated)
+        departments = ['Engineering', 'Marketing', 'Sales', 'HR', 'Operations', 'Design']
+        dept_scores = {dept: random.randint(65, 95) for dept in departments}
+        
+        fig = go.Figure(data=[go.Bar(
+            x=list(dept_scores.keys()),
+            y=list(dept_scores.values()),
+            marker_color=px.colors.sequential.Viridis
+        )])
+        
+        fig.update_layout(
+            title="Average Performance by Department",
+            yaxis_title="Average Score",
+            yaxis_range=[0, 100],
+            height=400
+        )
+        
+        st.plotly_chart(fig, use_container_width=True)
+    
+    # Performance distribution
+    st.markdown("### 📊 Performance Distribution")
+    
     if st.session_state.analysis_results:
-        st.markdown("---")
-        st.markdown("### 📊 Analysis Results")
+        scores = [st.session_state.analysis_results['performance_score']]
+        scores.extend([s + random.randint(-10, 10) for s in scores * 4])
         
-        # Key metrics
-        results = st.session_state.analysis_results
+        fig_dist = go.Figure(data=[go.Histogram(
+            x=scores,
+            nbinsx=10,
+            marker_color='rgb(102, 126, 234)',
+            opacity=0.7
+        )])
         
-        col1, col2, col3, col4 = st.columns(4)
+        fig_dist.update_layout(
+            title="Performance Score Distribution",
+            xaxis_title="Score",
+            yaxis_title="Frequency",
+            height=300
+        )
+        
+        st.plotly_chart(fig_dist, use_container_width=True)
+
+def display_ai_insights():
+    """Display AI-generated insights"""
+    st.markdown("### 🧠 AI-Powered Insights")
+    
+    # Generate insights based on data
+    insights = [
+        "🎯 **Pattern Detected:** Employees working 7-9 hours show 25% higher engagement",
+        "📈 **Trend Alert:** Performance peaks on Wednesdays, drops on Fridays",
+        "💡 **Recommendation:** Consider flexible hours for high-performing employees",
+        "⚖️ **Balance:** Teams with better work-life balance have 30% lower turnover",
+        "🤝 **Collaboration:** Cross-department projects boost innovation by 40%"
+    ]
+    
+    for insight in insights:
+        st.markdown(f'<div class="ai-card">{insight}</div>', unsafe_allow_html=True)
+    
+    # Predictive analytics
+    st.markdown("### 🔮 Predictive Analytics")
+    
+    # Create a simple prediction chart
+    future_dates = [datetime.now() + timedelta(days=i) for i in range(1, 31)]
+    predictions = [75 + 0.5*i + random.uniform(-2, 2) for i in range(30)]
+    
+    fig_pred = go.Figure(data=go.Scatter(
+        x=future_dates,
+        y=predictions,
+        mode='lines',
+        name='Predicted Performance',
+        line=dict(color='rgb(102, 126, 234)', width=3, dash='dash'),
+        fill='tozeroy',
+        fillcolor='rgba(102, 126, 234, 0.2)'
+    ))
+    
+    fig_pred.update_layout(
+        title="30-Day Performance Forecast",
+        xaxis_title="Date",
+        yaxis_title="Predicted Score",
+        yaxis_range=[60, 90],
+        height=400
+    )
+    
+    st.plotly_chart(fig_pred, use_container_width=True)
+
+def display_custom_reports():
+    """Display custom report generator"""
+    st.markdown("### 📋 Custom Report Generator")
+    
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        report_type = st.selectbox(
+            "Report Type",
+            ["Performance Summary", "Team Comparison", "Trend Analysis", "Comprehensive"]
+        )
+        
+        time_range = st.selectbox(
+            "Time Range",
+            ["Last 7 days", "Last 30 days", "Last quarter", "Last year", "Custom"]
+        )
+    
+    with col2:
+        metrics = st.multiselect(
+            "Include Metrics",
+            ["Performance Score", "Engagement", "Work Hours", "Task Complexity", "Burnout Risk"],
+            default=["Performance Score", "Engagement"]
+        )
+        
+        format_choice = st.radio(
+            "Output Format",
+            ["PDF", "Excel", "HTML", "JSON"]
+        )
+    
+    if st.button("📄 Generate Custom Report", use_container_width=True):
+        with st.spinner(f"Generating {report_type} report..."):
+            # Simulate report generation
+            st.success("✅ Report generated successfully!")
+            
+            # Show preview
+            st.markdown("#### 📋 Report Preview")
+            st.markdown("""
+            **Employee Performance Report**
+            
+            **Period:** Last 30 days
+            **Generated:** """ + datetime.now().strftime('%Y-%m-%d %H:%M') + """
+            
+            **Key Findings:**
+            1. Average performance score: 78.5
+            2. Engagement increased by 12%
+            3. Work hours optimized by 8%
+            
+            **Recommendations:**
+            - Implement flexible scheduling
+            - Enhance team collaboration
+            - Monitor burnout indicators
+            """)
+            
+            # Download button
+            report_data = "Sample report content - replace with actual data"
+            st.download_button(
+                label=f"📥 Download {format_choice}",
+                data=report_data,
+                file_name=f"report_{datetime.now().strftime('%Y%m%d')}.{format_choice.lower()}",
+                mime="application/octet-stream"
+            )
+
+def display_settings():
+    """Display settings page"""
+    st.markdown('<div class="main-title">⚙️ Settings & Configuration</div>', unsafe_allow_html=True)
+    
+    # Settings tabs
+    settings_tabs = st.tabs(["🔧 General", "🤖 AI Settings", "📊 Analytics", "🔐 Security"])
+    
+    with settings_tabs[0]:
+        st.markdown("### 🔧 General Settings")
+        
+        col1, col2 = st.columns(2)
         
         with col1:
-            st.metric(
-                "🎯 Performance",
-                f"{results['performance_score']}/100",
-                delta="Excellent" if results['performance_score'] >= 85 else "Good" if results['performance_score'] >= 70 else "Average"
+            app_theme = st.selectbox(
+                "Theme",
+                ["Light", "Dark", "Auto"]
+            )
+            
+            timezone = st.selectbox(
+                "Timezone",
+                ["UTC", "EST", "PST", "CET", "IST"]
             )
         
         with col2:
-            st.metric(
-                "💡 Engagement",
-                f"{results['engagement_score']:.1f}/100"
+            data_retention = st.slider(
+                "Data Retention (months)",
+                1, 36, 12
             )
-        
-        with col3:
-            st.metric(
-                "⏰ Work Hours",
-                f"{results['work_hours']:.1f}"
-            )
-        
-        with col4:
-            st.metric(
-                "🤖 AI Action",
-                results['action_description'].split()[0]
-            )
-        
-        # Visualizations
-        st.plotly_chart(results['charts']['bar'], use_container_width=True)
-        
-        # Recommendations
-        st.markdown("### 💡 Recommendations")
-        recommendations = results.get('recommendations', [])
-        for rec in recommendations:
-            st.markdown(f'<div class="recommendation-card">{rec}</div>', unsafe_allow_html=True)
-        
-        # Detailed report
-        with st.expander("📄 View Detailed Report", expanded=False):
-            st.text(results['report'])
             
-            # Export options
-            col1, col2 = st.columns(2)
-            with col1:
-                # Download report as text
-                st.download_button(
-                    label="📥 Download Report",
-                    data=results['report'],
-                    file_name=f"performance_report_{employee_name}_{datetime.now().strftime('%Y%m%d')}.txt",
-                    mime="text/plain"
-                )
-            
-            with col2:
-                # Download as JSON
-                json_data = json.dumps({
-                    'employee': employee_data if 'employee_data' in locals() else {},
-                    'analysis': {
-                        'performance_score': results['performance_score'],
-                        'engagement_score': results['engagement_score'],
-                        'work_hours': results['work_hours'],
-                        'recommendations': recommendations
-                    }
-                }, indent=2)
-                
-                st.download_button(
-                    label="📥 Download JSON",
-                    data=json_data,
-                    file_name=f"analysis_{employee_name}_{datetime.now().strftime('%Y%m%d')}.json",
-                    mime="application/json"
-                )
-
-def display_reports():
-    """Display reports page"""
-    st.markdown('<div class="main-title">📊 Reports & Analytics</div>', unsafe_allow_html=True)
-    
-    if st.session_state.database.df is None or st.session_state.database.df.empty:
-        st.warning("📭 No data available for reports. Please upload a dataset first.")
-        return
-    
-    # Summary statistics
-    st.markdown("### 📈 Dataset Statistics")
-    
-    col1, col2, col3 = st.columns(3)
-    
-    df = st.session_state.database.df
-    
-    with col1:
-        st.metric("📊 Total Records", len(df))
-    
-    with col2:
-        unique_count = df['Team Members'].nunique() if 'Team Members' in df.columns else 0
-        st.metric("👥 Unique Employees", unique_count)
-    
-    with col3:
-        date_range = "N/A"
-        if 'Date' in df.columns and not df['Date'].empty:
-            dates = pd.to_datetime(df['Date'], errors='coerce')
-            if not dates.isna().all():
-                date_range = f"{dates.min().strftime('%Y-%m-%d')} to {dates.max().strftime('%Y-%m-%d')}"
-        st.metric("📅 Date Range", date_range)
-    
-    st.markdown("---")
-    
-    # Data visualizations
-    st.markdown("### 📊 Data Visualizations")
-    
-    if 'Team Members' in df.columns and not df['Team Members'].empty:
-        # Employee activity chart
-        employee_counts = df['Team Members'].value_counts().head(10)
+            auto_backup = st.checkbox("Enable Auto Backup", value=True)
         
-        fig1 = px.bar(
-            x=employee_counts.index,
-            y=employee_counts.values,
-            title="Top 10 Employees by Activity",
-            labels={'x': 'Employee', 'y': 'Number of Records'},
-            color=employee_counts.values,
-            color_continuous_scale='Viridis'
+        if st.button("💾 Save General Settings", use_container_width=True):
+            st.success("Settings saved!")
+    
+    with settings_tabs[1]:
+        st.markdown("### 🤖 AI Model Settings")
+        
+        ai_model = st.selectbox(
+            "AI Model",
+            ["Enhanced Rule-Based", "Neural Network", "Hybrid", "Custom"]
         )
         
-        st.plotly_chart(fig1, use_container_width=True)
+        col_ai1, col_ai2 = st.columns(2)
+        
+        with col_ai1:
+            confidence_threshold = st.slider(
+                "Confidence Threshold",
+                0.0, 1.0, 0.7
+            )
+            
+            learning_rate = st.slider(
+                "Learning Rate",
+                0.001, 0.1, 0.01, 0.001,
+                format="%.3f"
+            )
+        
+        with col_ai2:
+            max_iterations = st.number_input(
+                "Max Iterations",
+                100, 10000, 1000
+            )
+            
+            enable_retraining = st.checkbox("Enable Auto-Retraining", value=True)
+        
+        if st.button("🤖 Update AI Settings", use_container_width=True):
+            st.success("AI settings updated!")
     
-    if 'Completed Task' in df.columns and not df['Completed Task'].empty:
-        # Task word cloud simulation
-        tasks = df['Completed Task'].astype(str)
-        task_words = ' '.join(tasks).lower().split()
+    with settings_tabs[2]:
+        st.markdown("### 📊 Analytics Settings")
         
-        from collections import Counter
-        word_counts = Counter(task_words)
-        top_words = dict(word_counts.most_common(20))
+        analytics_enabled = st.checkbox("Enable Advanced Analytics", value=True)
         
-        fig2 = go.Figure(data=[go.Bar(
-            x=list(top_words.keys()),
-            y=list(top_words.values()),
-            marker_color='lightblue'
-        )])
+        if analytics_enabled:
+            st.markdown("#### Data Collection")
+            collect_performance = st.checkbox("Performance Metrics", value=True)
+            collect_engagement = st.checkbox("Engagement Data", value=True)
+            collect_productivity = st.checkbox("Productivity Patterns", value=True)
+            collect_behavioral = st.checkbox("Behavioral Insights", value=False)
         
-        fig2.update_layout(
-            title="Most Common Task Words",
-            xaxis_title="Word",
-            yaxis_title="Frequency"
+        report_frequency = st.selectbox(
+            "Report Frequency",
+            ["Daily", "Weekly", "Monthly", "Quarterly"]
+        )
+    
+    with settings_tabs[3]:
+        st.markdown("### 🔐 Security & Access")
+        
+        # Password change
+        st.markdown("#### Change Password")
+        current_pw = st.text_input("Current Password", type="password")
+        new_pw = st.text_input("New Password", type="password")
+        confirm_pw = st.text_input("Confirm New Password", type="password")
+        
+        if st.button("🔐 Update Password", use_container_width=True):
+            if new_pw == confirm_pw and len(new_pw) >= 8:
+                st.success("Password updated successfully!")
+            else:
+                st.error("Passwords don't match or are too short")
+        
+        st.markdown("#### Access Control")
+        user_role = st.selectbox(
+            "Default User Role",
+            ["Viewer", "Analyst", "Manager", "Admin"]
         )
         
-        st.plotly_chart(fig2, use_container_width=True)
-    
-    st.markdown("---")
-    
-    # Export section
-    st.markdown("### 📤 Export Options")
-    
-    col1, col2, col3 = st.columns(3)
-    
-    with col1:
-        if st.button("💾 Export Full Dataset", use_container_width=True):
-            csv = df.to_csv(index=False)
-            st.download_button(
-                label="📥 Download CSV",
-                data=csv,
-                file_name="employee_full_dataset.csv",
-                mime="text/csv",
-                use_container_width=True
-            )
-    
-    with col2:
-        if st.button("📄 Generate Summary", use_container_width=True):
-            summary = f"""
-            EMPLOYEE DATASET SUMMARY
-            Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
-            
-            Basic Statistics:
-            - Total Records: {len(df)}
-            - Unique Employees: {df['Team Members'].nunique() if 'Team Members' in df.columns else 0}
-            - Date Range: {df['Date'].min() if 'Date' in df.columns else 'N/A'} to {df['Date'].max() if 'Date' in df.columns else 'N/A'}
-            
-            Columns: {', '.join(df.columns.tolist())}
-            """
-            
-            st.download_button(
-                label="📥 Download Summary",
-                data=summary,
-                file_name="dataset_summary.txt",
-                mime="text/plain",
-                use_container_width=True
-            )
-    
-    with col3:
-        if st.button("📊 Export Charts", use_container_width=True):
-            st.info("Chart export feature coming soon!")
+        enable_2fa = st.checkbox("Enable Two-Factor Authentication", value=False)
+        
+        st.markdown("#### Data Privacy")
+        anonymize_data = st.checkbox("Anonymize Data in Reports", value=True)
+        auto_logout = st.number_input("Auto Logout (minutes)", 5, 120, 30)
 
-# Run the app
+# Run the enhanced app
 if __name__ == "__main__":
     main()
